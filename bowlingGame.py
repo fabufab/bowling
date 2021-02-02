@@ -1,32 +1,59 @@
+import pytest
+
+class GameFinishedError(Exception):
+    def __init__(self, message="Game Finished. No more rolls allowed!"):
+        super().__init__(message)
+
+class InvalidPinsError(Exception):
+    def __init__(self, message="Can only register rolls with [0..10] pins!"):
+        super().__init__(message)
+
 class Game:
     def __init__(self):
+        self.rolls = []
         self.frames = []
         self.gameFinished = False
 
     def addRoll(self, pins):
-        if len(self.frames) == 0 or self.frames[-1].frameFinished:
-            f = Frame()
-            f.addRoll(pins)
-            self.frames.append(f)
-        else:
-            f = self.frames[-1]
-            f.addRoll(pins)
-        self.updatePreviousFrame(f, pins)
+        if pins < 0 or pins > 10:
+            raise InvalidPinsError()
+        if len(self.frames) == 10:
+            raise GameFinishedError()
 
-    def updatePreviousFrame(self, currentFrame, pins):
-        if len(self.frames) > 1:
-            previousFrame = self.frames[-2]
-            if previousFrame.isSpare() and (len(currentFrame.pinsRolled) == 1):
-                previousFrame.score += pins
-            elif previousFrame.isStrike():
-                print("in isStrike")
-                previousFrame.score += pins
+        self.rolls.append(pins)
+        self.updateFrames()
 
     def calculateScore(self):
         score = 0
-        for i in range(len(self.frames)):
-            score = score + self.frames[i].score
+        frameIndex = 0
+        for frame in range(10):
+            if self.rolls[frameIndex] == 10: # strike
+                score += 10 + self.rolls[frameIndex+1] + self.rolls[frameIndex+2]
+                frameIndex += 1
+            elif self.rolls[frameIndex] + self.rolls[frameIndex+1] == 10: # spare
+                score += 10 + self.rolls[frameIndex+2]
+                frameIndex += 2
+            else:
+                score += self.rolls[frameIndex] + self.rolls[frameIndex+1]
+                frameIndex += 2
         return score
+
+    def updateFrames(self):
+        frames = []
+        rollIndex = 0
+        for roll in range(len(self.rolls)):
+            if self.rolls[roll] == 10: # strike
+                frame = Frame()
+                frame.pinsRolled = [10]
+                if len(self.rolls) - roll - 1 == 0:
+                    frame.score = 10
+                elif len(self.rolls) - roll - 1 == 1:
+                    frame.score = 10 + self.rolls[roll+1]
+                elif len(self.rolls) - roll - 1 > 1:
+                    frame.score = 10 + self.rolls[roll+1] + self.rolls[roll+2]
+                frames.append(frame)
+        # TODO: Add code for spares and regular rolls
+        self.frames = frames
 
     def __str__(self):
         text = ""
@@ -38,22 +65,9 @@ class Frame:
     def __init__(self):
         self.pinsRolled = []
         self.score = 0
-        self.frameFinished = False
-
-    def addRoll(self, pins):
-        self.pinsRolled.append(pins)
-        self.score += pins
-        if self.isSpare() or self.isStrike() or len(self.pinsRolled) == 2:
-            self.frameFinished = True
-
-    def isSpare(self):
-        return (len(self.pinsRolled) == 2) and (self.score >= 10)
-
-    def isStrike(self):
-        return (len(self.pinsRolled) == 1) and (self.score >= 10)
 
     def __str__(self):
-        text = "(" + str(self.pinsRolled) + "," + str(self.score) + ", Spare: " + str(self.isSpare()) + ", Strike: " + str(self.isStrike()) + ")"
+        text = "(" + str(self.pinsRolled) + "," + str(self.score) + ")"
         return text
 
 class TestClass:
@@ -69,8 +83,9 @@ class TestClass:
 
     def testNumFrames(self):
         g = Game()
-        self.rollMany(g, 10, 3)
-        assert len(g.frames) == 5
+        self.rollMany(g, 10, 10)
+        print(g)
+        assert len(g.frames) == 10
 
     def testOneSpare(self):
         g = Game()
@@ -78,7 +93,6 @@ class TestClass:
         g.addRoll(5) # spare
         g.addRoll(3)
         self.rollMany(g, 17, 0)
-        print(g)
         assert g.calculateScore() == 16
 
     def testOneStrike(self):
@@ -86,9 +100,28 @@ class TestClass:
         g.addRoll(10) # strike
         g.addRoll(3)
         g.addRoll(3)
-        self.rollMany(g, 18, 0)
-        print(g)
+        self.rollMany(g, 17, 0)
         assert g.calculateScore() == 22
+
+    def testPerfectGame(self):
+        g = Game()
+        self.rollMany(g, 12, 10)
+        assert g.calculateScore() == 300
+
+    def testGameFinishes(self):
+        with pytest.raises(GameFinishedError):
+            g = Game()
+            self.rollMany(g, 30, 3)
+
+    def testMaxTenPins(self):
+        with pytest.raises(InvalidPinsError):
+            g = Game()
+            g.addRoll(11)
+
+    def testNoNegativePins(self):
+        with pytest.raises(InvalidPinsError):
+            g = Game()
+            g.addRoll(-1)
 
     def rollMany(self, game, numberOfRolls, pins):
         for i in range(numberOfRolls):
