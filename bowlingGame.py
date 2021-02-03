@@ -22,6 +22,8 @@ class Game:
 
         self.rolls.append(pins)
         self.updateFrames()
+        #print(self.rolls)
+        print(self)
 
     def calculateScore(self):
         score = 0
@@ -39,21 +41,58 @@ class Game:
         return score
 
     def updateFrames(self):
-        frames = []
-        rollIndex = 0
-        for roll in range(len(self.rolls)):
-            if self.rolls[roll] == 10: # strike
-                frame = Frame()
-                frame.pinsRolled = [10]
-                if len(self.rolls) - roll - 1 == 0:
-                    frame.score = 10
-                elif len(self.rolls) - roll - 1 == 1:
-                    frame.score = 10 + self.rolls[roll+1]
-                elif len(self.rolls) - roll - 1 > 1:
-                    frame.score = 10 + self.rolls[roll+1] + self.rolls[roll+2]
-                frames.append(frame)
-        # TODO: Add code for spares and regular rolls
-        self.frames = frames
+        self.frames = []
+        frameIndex = 0
+        try:
+            while self.rolls[frameIndex]:
+                if self.rolls[frameIndex] == 10: # strike
+                    self.handleStrike(frameIndex)
+                    frameIndex += 1
+                else:
+                    self.handleNonStrike(frameIndex)
+                    frameIndex += 2
+        except IndexError:
+            print("No more frames to process!")
+
+    def handleNonStrike(self, frameIndex):
+        try:
+            nextRoll = self.rolls[frameIndex+1]
+            if self.rolls[frameIndex] + nextRoll == 10:
+                self.handleSpare(frameIndex)
+            else:
+                self.handleDefault(frameIndex)
+        except IndexError: # unfinished frame
+            f = Frame()
+            f.pinsRolled = [self.rolls[frameIndex]]
+            f.score = self.rolls[frameIndex]
+            self.frames.append(f)
+
+    def handleDefault(self, frameIndex):
+        f = Frame()
+        f.pinsRolled = [self.rolls[frameIndex], self.rolls[frameIndex+1]]
+        f.score = self.rolls[frameIndex] + self.rolls[frameIndex+1]
+        self.frames.append(f)
+
+    def handleSpare(self, frameIndex):
+        f = Frame()
+        f.pinsRolled = [self.rolls[frameIndex], self.rolls[frameIndex+1]]
+        try:
+            f.score = 10 + self.rolls[frameIndex+2]
+        except IndexError:
+            f.score = 10
+        self.frames.append(f)
+
+    def handleStrike(self, frameIndex):
+        f = Frame()
+        f.pinsRolled = [10]
+        try:
+            f.score = 10 + self.rolls[frameIndex+1] + self.rolls[frameIndex+2]
+        except IndexError:
+            try:
+                f.score = 10 + self.rolls[frameIndex+1]
+            except IndexError:
+                f.score = 10
+        self.frames.append(f)
 
     def __str__(self):
         text = ""
@@ -107,6 +146,30 @@ class TestClass:
         g = Game()
         self.rollMany(g, 12, 10)
         assert g.calculateScore() == 300
+
+    def testExampleGame(self):
+        g = Game()
+        g.addRoll(1)
+        g.addRoll(4)
+        g.addRoll(4)
+        g.addRoll(5)
+        g.addRoll(6)
+        g.addRoll(4)
+        g.addRoll(5)
+        g.addRoll(5)
+        g.addRoll(10)
+        g.addRoll(0)
+        g.addRoll(1)
+        g.addRoll(7)
+        g.addRoll(3)
+        g.addRoll(6)
+        g.addRoll(4)
+        g.addRoll(10)
+        g.addRoll(2)
+        g.addRoll(8)
+        g.addRoll(6)
+        assert g.calculateScore() == 133
+        assert len(g.frames) == 10
 
     def testGameFinishes(self):
         with pytest.raises(GameFinishedError):
